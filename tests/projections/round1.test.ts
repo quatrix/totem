@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 
 import { projectRecovery } from "../../src/projections/recovery.js";
 import { projectStrain } from "../../src/projections/strain.js";
-import { projectSleep } from "../../src/projections/sleep.js";
+import { projectSleep, projectSleepHrCurve } from "../../src/projections/sleep.js";
 import { projectToday } from "../../src/projections/today.js";
 import { projectTrend } from "../../src/projections/trend.js";
 import { projectCalendar } from "../../src/projections/calendar.js";
@@ -13,7 +13,7 @@ import { projectSleepNeed } from "../../src/projections/sleep_need.js";
 
 import { RecoveryOut } from "../../src/schemas/recovery.js";
 import { StrainOut } from "../../src/schemas/strain.js";
-import { SleepOut } from "../../src/schemas/sleep.js";
+import { SleepOut, HrCurveOut } from "../../src/schemas/sleep.js";
 import { TodayOut } from "../../src/schemas/today.js";
 import { CalendarOut } from "../../src/schemas/calendar.js";
 import { SleepNeedOut } from "../../src/schemas/sleep_need.js";
@@ -142,6 +142,23 @@ describe("projectSleep (captured)", () => {
     expect(out.sleep_hr.avg_bpm!).toBeGreaterThan(40);
     expect(out.sleep_hr.avg_bpm!).toBeLessThan(120);
     expect(out.sleep_hr.min_bpm!).toBeLessThanOrEqual(out.sleep_hr.avg_bpm!);
+  });
+});
+
+describe("projectSleepHrCurve (captured)", () => {
+  const out = projectSleepHrCurve(load("deep_dive_sleep.json"), "2026-05-23");
+
+  it("parses schema and yields a dense in-sleep HR series within the sleep window", () => {
+    expect(() => HrCurveOut.parse(out)).not.toThrow();
+    expect(out.sample_count).toBe(out.hr_curve.length);
+    expect(out.hr_curve.length).toBeGreaterThan(100);
+    for (const p of out.hr_curve) {
+      expect(p.bpm).toBeGreaterThan(25);
+      expect(p.bpm).toBeLessThan(220);
+    }
+    // anchored to the real sleep window (within a minute of [start, end])
+    expect(Date.parse(out.hr_curve[0]!.at)).toBeGreaterThanOrEqual(Date.parse(out.started_at!) - 60000);
+    expect(Date.parse(out.hr_curve.at(-1)!.at)).toBeLessThanOrEqual(Date.parse(out.ended_at!) + 60000);
   });
 });
 

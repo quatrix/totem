@@ -9,6 +9,7 @@ import { registerCalendar } from "./v2/calendar.js";
 // Deep dives
 import { registerRecovery } from "./v2/recovery.js";
 import { registerSleep } from "./v2/sleep.js";
+import { registerHrCurve } from "./v2/hr_curve.js";
 import { registerStrain } from "./v2/strain.js";
 // Trends + compare
 import { registerTrend } from "./v2/trend.js";
@@ -66,13 +67,14 @@ import { registerRaw } from "./v2/raw.js";
 import { registerEndpoints } from "./v2/endpoints.js";
 
 export function registerTools(server: McpServer, client: WhoopClient): void {
-  // Reads (32)
+  // Reads (33)
   registerToday(server, client);
   registerDay(server, client);
   registerProfile(server, client);
   registerCalendar(server, client);
   registerRecovery(server, client);
   registerSleep(server, client);
+  registerHrCurve(server, client);
   registerStrain(server, client);
   registerTrend(server, client);
   registerCompare(server, client);

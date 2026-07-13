@@ -38,3 +38,19 @@ export const SleepOut = z.object({
   respiratory_rate: z.number().nullable(),
 });
 export type SleepOutT = z.infer<typeof SleepOut>;
+
+// Output of whoop_hr_curve: the in-sleep HR series. Points are the app's graph
+// cadence (every few minutes), not raw per-second samples; timestamps are
+// midpoint-anchored approximations (see projections/sleep.ts).
+export const HrCurveOut = z.object({
+  date: z.iso.date(),
+  started_at: IsoDateTime.nullable(),
+  ended_at: IsoDateTime.nullable(),
+  sample_count: z.number().int(),
+  hr_curve: z.array(z.object({
+    at: IsoDateTime,
+    bpm: z.number(),
+    stage: SleepStageEnum,
+  })),
+});
+export type HrCurveOutT = z.infer<typeof HrCurveOut>;

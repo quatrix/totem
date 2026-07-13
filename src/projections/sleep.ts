@@ -1,4 +1,4 @@
-import type { SleepOutT } from "../schemas/sleep.js";
+import type { SleepOutT, HrCurveOutT } from "../schemas/sleep.js";
 import {
   isObject,
   asArray,
@@ -133,7 +133,8 @@ function collectStagePoints(raw: unknown): StagePoint[] {
   return out;
 }
 
-// Build the stage timeline (hypnogram) + in-sleep HR (avg/min) from the points.
+// Build the stage timeline (hypnogram), in-sleep HR (avg/min), and the HR curve
+// from the points.
 // Timestamps: clock labels give wall-clock minutes; we make them monotonic
 // (handling the midnight wrap), then map them onto the UTC sleep window anchored
 // at the *midpoint*. The data is inset ~symmetrically at both ends, so the
@@ -144,7 +145,7 @@ function buildSleepTimeline(
   points: StagePoint[],
   startIso: string | null,
   endIso: string | null,
-): { hypnogram: SleepOutT["hypnogram"]; sleep_hr: SleepOutT["sleep_hr"] } {
+): { hypnogram: SleepOutT["hypnogram"]; sleep_hr: SleepOutT["sleep_hr"]; hr_curve: HrCurveOutT["hr_curve"] } {
   const bpms = points.map((p) => p.bpm).filter((b): b is number => b !== null);
   const sleep_hr = bpms.length
     ? { avg_bpm: Math.round(bpms.reduce((a, b) => a + b, 0) / bpms.length), min_bpm: Math.min(...bpms) }
@@ -154,7 +155,7 @@ function buildSleepTimeline(
   const endMs = endIso ? Date.parse(endIso) : NaN;
   const clocked = points.filter((p) => p.clockMin !== null);
   if (clocked.length < 2 || Number.isNaN(startMs) || Number.isNaN(endMs)) {
-    return { hypnogram: [], sleep_hr };
+    return { hypnogram: [], sleep_hr, hr_curve: [] };
   }
 
   // Monotonic elapsed minutes from the first point's clock label.
@@ -181,7 +182,31 @@ function buildSleepTimeline(
       runStart = i;
     }
   }
-  return { hypnogram, sleep_hr };
+
+  // The same points as a timestamped HR series (whoop_hr_curve): every clocked
+  // point that carries a bpm reading.
+  const hr_curve: HrCurveOutT["hr_curve"] = [];
+  for (let i = 0; i < clocked.length; i++) {
+    const bpm = clocked[i]!.bpm;
+    if (bpm !== null) hr_curve.push({ at: tsAt(i), bpm, stage: clocked[i]!.stage });
+  }
+
+  return { hypnogram, sleep_hr, hr_curve };
+}
+
+// whoop_hr_curve: the in-sleep HR series from the same LINE_PLOT points that
+// drive the hypnogram — the app's graph cadence (a point every ~minute), not
+// raw per-second sensor samples.
+export function projectSleepHrCurve(raw: unknown, date: string): HrCurveOutT {
+  const root = isObject(raw) ? raw : {};
+  const headerSection = isObject(root.header_section) ? (root.header_section as Record<string, unknown>) : {};
+  const dest = isObject(headerSection.destination) ? (headerSection.destination as Record<string, unknown>) : null;
+  const params = dest && isObject(dest.parameters) ? (dest.parameters as Record<string, unknown>) : null;
+  const startedAt = params ? asString(params.start_time) : null;
+  const endedAt = params ? asString(params.end_time) : null;
+
+  const { hr_curve } = buildSleepTimeline(collectStagePoints(raw), startedAt, endedAt);
+  return { date, started_at: startedAt, ended_at: endedAt, sample_count: hr_curve.length, hr_curve };
 }
 
 export function projectSleep(raw: unknown, date: string): SleepOutT {
